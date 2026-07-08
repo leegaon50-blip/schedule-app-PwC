@@ -1,0 +1,6 @@
+{
+  "functions": {
+    "api/analyze-timetable.js": { "maxDuration": 30 },
+    "api/tasks.js":             { "maxDuration": 15 }
+  }
+}

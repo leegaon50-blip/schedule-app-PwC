@@ -1,0 +1,32 @@
+# Electron 빌드 산출물
+node_modules/
+
+# Python 캐시
+__pycache__/
+*.pyc
+*.pyo
+
+# 환경변수 (민감정보) — .env.example 만 커밋하고 실제 .env 는 절대 커밋 금지
+.env
+.env.local
+.env.*.local
+
+# 로컬 전용 민감 파일 (GitHub에 올리지 않음)
+kakao_auth.py
+token.json
+
+# Gemini API 키 (Electron 로컬용) — Vercel 배포 시에는 환경변수로 설정
+config.js
+
+# 감사 업무 스냅샷 — 보안 규정상 외부 노출 금지 (로컬 전용)
+audit_snapshot.json
+
+# 로컬 SQLite DB (개인 일정/성적 데이터)
+schedule.db
+schedule.db-journal
+schedule.db-wal
+schedule.db-shm
+
+# 편집기/수동 백업 파일 — 과거 실수로 민감정보가 커밋된 적 있어 전면 차단
+*.bak
+*.bak_*

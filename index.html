@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#0f1117">
+<title>일정 관리</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+/* ── 색상 토큰 (ui-ux-pro-max · Minimal Dark) ───────────────────────── */
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#22253a;--surface3:#2e3248;
+  --border:#2a2d3e;--border2:#1e2133;
+  --text:#f0f2f8;--text2:#94a3b8;--text3:#4b5675;
+  --accent:#6366f1;--accent2:#4f46e5;
+  --accent-bg:rgba(99,102,241,.12);--accent-bg2:rgba(99,102,241,.06);
+  --hi-bg:#2d1515;--hi-t:#f87171;
+  --md-bg:#2d2010;--md-t:#fbbf24;
+  --lo-bg:#0f2d1a;--lo-t:#4ade80;
+  --nn-bg:#1e2030;--nn-t:#64748b;
+  --danger:#ef4444;--danger-bg:#2d1515;
+  --success:#22c55e;--success-bg:#0f2d1a;
+  --warn-bg:#2d2010;--warn-t:#fbbf24;
+}
+
+/* ── 리셋 & 기본 ─────────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;color:var(--text);background:var(--bg);-webkit-tap-highlight-color:transparent;-webkit-user-select:none;-moz-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,select{-webkit-user-select:text !important;-moz-user-select:text !important;user-select:text !important;-webkit-touch-callout:default !important}
+
+/* ── 레이아웃 ────────────────────────────────────────────────────────── */
+.app-wrap{max-width:860px;margin:0 auto;padding:16px}
+
+/* ── 탭 ──────────────────────────────────────────────────────────────── */
+.tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);border-radius:12px 12px 0 0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-webkit-app-region:drag}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:12px 18px;cursor:pointer;font-size:13px;color:var(--text2);border-bottom:2px solid transparent;transition:all 0.15s;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;-webkit-app-region:no-drag;user-select:none}
+.tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:500}
+.tab:active{background:var(--surface2)}
+.panel{display:none;padding:16px;background:var(--surface);border-radius:0 0 12px 12px;border:1px solid var(--border);border-top:none}
+.panel.active{display:block}
+
+/* ── 달력 ────────────────────────────────────────────────────────────── */
+.cal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.cal-nav{display:flex;align-items:center;gap:8px}
+.cal-nav button{background:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;color:var(--text);font-size:13px;min-height:40px;min-width:40px;display:flex;align-items:center;justify-content:center}
+.cal-nav button:active{background:var(--surface2)}
+#cal-outer{overflow:hidden;border-radius:10px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.cal-day-header{background:var(--surface2);padding:6px 2px;text-align:center;font-size:11px;font-weight:500;color:var(--text2)}
+.cal-day{background:var(--surface);padding:4px;min-height:76px;cursor:pointer;transition:background 0.1s;min-width:0;overflow:hidden}
+.cal-day:active{background:var(--accent-bg)}
+.cal-day.other-month{background:var(--bg)}
+.cal-day.other-month .day-num{color:var(--text3)}
+.cal-day.today{background:#1c1a08}
+.cal-day.today .day-num{background:#e8a000;color:#fff;border-radius:50%}
+.cal-day.selected{background:var(--accent-bg) !important;outline:2px solid var(--accent);outline-offset:-1px}
+.day-num{font-size:12px;font-weight:500;margin-bottom:2px;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
+.cal-evt{font-size:10px;padding:1px 4px;border-radius:3px;margin-bottom:1px;cursor:pointer;white-space:normal;word-break:break-all;overflow-wrap:break-word;overflow:hidden;width:100%;box-sizing:border-box;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cal-evt.is-sub{border-left:2px solid var(--accent);padding-left:3px}
+.urgency-high{background:var(--hi-bg);color:var(--hi-t)}
+.urgency-mid{background:var(--md-bg);color:var(--md-t)}
+.urgency-low{background:var(--lo-bg);color:var(--lo-t)}
+.urgency-none{background:var(--nn-bg);color:var(--nn-t)}
+
+/* ── 달력 요일 색상 구분 ─────────────────────────────────────────────── */
+.cal-day-header:first-child{color:#f87171}
+.cal-day-header:nth-child(7){color:#60a5fa}
+.cal-day.sunday .day-num,.cal-day.holiday .day-num{color:#f87171}
+.cal-day.saturday .day-num{color:#60a5fa}
+.cal-day.holiday{background:#1f1515}
+.cal-day.other-month.sunday .day-num,.cal-day.other-month.holiday .day-num{color:#7f3e3e}
+.cal-day.other-month.saturday .day-num{color:#3e5e8e}
+
+/* ── 연/월 선택 ──────────────────────────────────────────────────────── */
+#cal-year,#cal-month{border:1px solid var(--border);border-radius:8px;padding:6px;font-size:15px;font-weight:500;background:var(--surface2);cursor:pointer;outline:none;min-height:40px;color:var(--text);-webkit-appearance:none;appearance:none}
+#cal-year:focus,#cal-month:focus{border-color:var(--accent)}
+
+/* ── 지난 일정 구분 ──────────────────────────────────────────────────── */
+.task-section-sep{display:flex;align-items:center;gap:8px;color:var(--text3);font-size:12px;margin:4px 0}
+.task-section-sep::before,.task-section-sep::after{content:'';flex:1;border-top:1px solid var(--border)}
+.task-card.past{opacity:0.45}
+
+/* ── 날짜 패널 ───────────────────────────────────────────────────────── */
+.day-panel{border:1px solid var(--border);border-radius:10px;margin-top:14px;overflow:hidden}
+.day-panel-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.day-panel-title{font-size:14px;font-weight:500}
+.day-panel-body{padding:12px 14px}
+.day-task-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border2);cursor:pointer;min-height:48px}
+.day-task-row:last-child{border-bottom:none}
+.day-task-row:active .day-task-name{color:var(--accent)}
+.day-task-name{font-size:13px;font-weight:500;flex:1}
+.day-task-meta{font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;flex-shrink:0}
+
+/* ── 폼 ──────────────────────────────────────────────────────────────── */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.form-row.full{grid-template-columns:1fr}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:12px;color:var(--text2);font-weight:500}
+.form-group input,.form-group select,.form-group textarea{border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;background:var(--surface2);color:var(--text);font-family:inherit;outline:none;-webkit-appearance:none;appearance:none}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--accent)}
+.form-group textarea{resize:vertical;min-height:54px}
+.btn-primary{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;cursor:pointer;font-size:14px;font-weight:500;min-height:44px;transition:background .15s}
+.btn-primary:active{background:var(--accent2)}
+.btn-sec{background:none;border:1px solid var(--border);border-radius:8px;padding:10px 18px;cursor:pointer;font-size:14px;color:var(--text);min-height:44px;transition:background .15s}
+.btn-sec:active{background:var(--surface2)}
+
+/* ── 일정 목록 ───────────────────────────────────────────────────────── */
+.task-list{display:flex;flex-direction:column;gap:8px}
+.task-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;user-select:none}
+.task-card:active{border-color:var(--accent);background:var(--surface2)}
+.task-card-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.task-name{font-weight:500;font-size:14px;flex:1}
+.badge{font-size:11px;padding:2px 8px;border-radius:6px;font-weight:500}
+.days-left{font-size:12px;color:var(--text2);white-space:nowrap}
+.days-left.urgent{color:var(--hi-t);font-weight:500}
+.progress-bar-wrap{background:var(--surface3);border-radius:4px;height:6px;margin-top:6px}
+.progress-bar{height:6px;border-radius:4px;background:var(--accent);transition:width 0.3s}
+.task-meta{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text2);margin-top:4px}
+
+/* ── 정렬 바 ─────────────────────────────────────────────────────────── */
+.sort-bar{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;align-items:center}
+.sort-bar::-webkit-scrollbar{display:none}
+.sort-btn{font-size:12px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:none;color:var(--text2);white-space:nowrap;flex-shrink:0;min-height:34px}
+.sort-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mini-btn{background:none;border:none;padding:10px 14px;cursor:pointer;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:4px;white-space:nowrap;margin-left:auto;-webkit-app-region:no-drag}
+
+/* ── 미니뷰 (Electron 전용) ──────────────────────────────────────────── */
+#mini-view{display:none;height:100vh;flex-direction:column;background:var(--bg)}
+#mini-view.active{display:flex}
+.mini-header{background:var(--bg);color:var(--text);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;-webkit-app-region:drag;border-bottom:1px solid var(--border)}
+.mini-header-title{font-size:13px;font-weight:500}
+.mini-count{font-size:11px;color:var(--text2);margin-left:6px}
+.mini-expand-btn{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text2);font-size:11px;padding:3px 9px;cursor:pointer;-webkit-app-region:no-drag;display:flex;align-items:center;gap:4px}
+.mini-list{flex:1;overflow-y:auto;padding:8px}
+.mini-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.mini-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.mini-item-name{flex:1;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-item-right{text-align:right;flex-shrink:0}
+.mini-item-date{font-size:11px;color:var(--text2)}
+.mini-item-dl{font-size:10px;color:var(--text3);margin-top:1px}
+.mini-item-dl.urgent{color:var(--hi-t);font-weight:500}
+
+/* ── 진행률 ──────────────────────────────────────────────────────────── */
+.prog-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px}
+.prog-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.prog-name{font-weight:500;font-size:14px;flex:1}
+.prog-pct{font-size:20px;font-weight:600;color:var(--accent)}
+.prog-slider{width:100%;margin:4px 0;accent-color:var(--accent);height:28px;cursor:pointer}
+.prog-memo-input{border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:14px;width:100%;min-height:54px;resize:vertical;background:var(--surface2);color:var(--text);font-family:inherit;outline:none}
+.prog-memo-input:focus{border-color:var(--accent)}
+
+/* ── 모달 ────────────────────────────────────────────────────────────── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:flex-end;justify-content:center;z-index:200;overflow-y:auto}
+.modal{background:var(--surface);border-radius:16px 16px 0 0;padding:20px;width:100%;max-width:600px;border:1px solid var(--border);box-shadow:0 -4px 40px rgba(0,0,0,0.4);max-height:92vh;overflow-y:auto;transform:translateY(28px);opacity:0;transition:transform 0.26s cubic-bezier(0.34,1.4,0.64,1),opacity 0.2s}
+.modal-bg.open .modal{transform:translateY(0);opacity:1}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.modal-title{font-size:15px;font-weight:500;flex:1}
+.close-btn{background:none;border:none;font-size:24px;cursor:pointer;color:var(--text2);line-height:1;padding:4px 8px;min-height:44px;min-width:44px;display:flex;align-items:center;justify-content:center}
+.modal-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px}
+.modal-tab{padding:10px 16px;cursor:pointer;font-size:13px;color:var(--text2);border-bottom:2px solid transparent;min-height:44px;display:flex;align-items:center}
+.modal-tab.active{color:var(--text);border-bottom-color:var(--accent);font-weight:500}
+.modal-panel{display:none}
+.modal-panel.active{display:block}
+
+/* ── 세부일정 카드 ───────────────────────────────────────────────────── */
+.sub-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:6px;cursor:pointer;user-select:none}
+.sub-card:active{border-color:var(--accent)}
+.sub-card-header{display:flex;align-items:center;gap:6px}
+.sub-card-name{font-size:13px;font-weight:500;flex:1}
+.sub-tag{font-size:10px;padding:1px 6px;border-radius:6px}
+.sub-pb-wrap{background:var(--surface3);border-radius:3px;height:4px;margin-top:4px}
+.sub-pb{height:4px;border-radius:3px;background:var(--accent)}
+
+/* ── 공통 유틸 ───────────────────────────────────────────────────────── */
+.empty{text-align:center;padding:28px;color:var(--text3);font-size:13px}
+.section-label{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px;margin-top:14px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.info-cell{background:var(--surface2);border-radius:8px;padding:10px;text-align:center}
+.info-cell .lbl{font-size:11px;color:var(--text2);margin-bottom:2px}
+.info-cell .val{font-weight:500;font-size:13px}
+.memo-box{font-size:13px;color:var(--text2);margin-bottom:12px;padding:8px;background:var(--surface2);border-radius:8px}
+.memo-log-item{font-size:12px;padding:6px 8px;background:var(--surface2);border-radius:8px;margin-bottom:4px}
+.file-chip{font-size:12px;color:var(--accent);background:var(--accent-bg);border-radius:6px;padding:5px 10px;margin-bottom:4px;display:inline-flex;align-items:center;gap:4px;word-break:break-all;cursor:pointer}
+.file-chip:hover{background:var(--accent-bg2)}
+.legend{margin-top:8px;display:flex;gap:12px;font-size:11px;color:var(--text3);flex-wrap:wrap}
+.legend-dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:3px}
+.save-ok{font-size:12px;color:var(--lo-t);margin-left:8px}
+
+/* ── 채용공고 ────────────────────────────────────────────────────────── */
+.tab-badge{background:var(--danger);color:#fff;border-radius:10px;font-size:10px;padding:0 5px;height:16px;display:inline-flex;align-items:center;justify-content:center;margin-left:4px;font-weight:600;flex-shrink:0}
+.jobs-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.jobs-source{font-size:12px;color:var(--text3)}
+.job-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px;cursor:pointer;user-select:none;touch-action:pan-y}
+.job-card:active{border-color:var(--accent);background:var(--surface2)}
+.job-card-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+.job-title{font-weight:500;font-size:14px;flex:1;line-height:1.4}
+.new-badge{background:var(--danger);color:#fff;font-size:10px;padding:2px 7px;border-radius:6px;font-weight:600;white-space:nowrap;flex-shrink:0;margin-top:1px}
+.job-meta{display:flex;gap:12px;font-size:12px;color:var(--text2);flex-wrap:wrap}
+.job-company{color:var(--text);font-weight:500}
+.ext-btn{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--accent);padding:8px 14px;border:1px solid rgba(99,102,241,.3);border-radius:6px;cursor:pointer;background:none;min-height:40px}
+.ext-btn:active{background:var(--accent-bg)}
+.jobs-status{text-align:center;padding:32px;color:var(--text3);font-size:13px}
+
+/* ── 컨텍스트 메뉴 ───────────────────────────────────────────────────── */
+#ctx-menu{position:fixed;z-index:300;background:var(--surface2);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,0.4);min-width:180px;overflow:hidden;padding:4px 0}
+.ctx-item{padding:13px 18px;cursor:pointer;font-size:14px;display:flex;align-items:center;gap:10px;min-height:48px}
+.ctx-item:active{background:var(--surface3)}
+.ctx-item.danger{color:var(--hi-t)}
+.ctx-item.danger:active{background:var(--danger-bg)}
+
+/* ── 롱프레스 피드백 ─────────────────────────────────────────────────── */
+.lp-active{background:var(--accent-bg) !important;transition:background 0.1s}
+
+/* ── OCR 시간표 등록 ──────────────────────────────────────────────────── */
+.ocr-semester-bar{background:var(--accent-bg);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--accent);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+#ocr-upload-zone,.ocr-upload-zone{border:2px dashed var(--border);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;background:var(--surface2);transition:border-color .15s,background .15s}
+#ocr-upload-zone.dragover,#ocr-upload-zone:hover,.ocr-upload-zone.dragover,.ocr-upload-zone:hover{border-color:var(--accent);background:var(--accent-bg)}
+.ocr-upload-icon{font-size:40px;color:var(--text3);margin-bottom:10px;display:block}
+.ocr-upload-title{font-size:14px;font-weight:500;margin-bottom:4px}
+.ocr-upload-sub{font-size:12px;color:var(--text2);margin-bottom:18px}
+.ocr-notice{font-size:12px;color:var(--text2);background:var(--surface2);border-radius:8px;padding:10px 12px;line-height:1.7;margin-top:14px;text-align:left;max-width:420px;margin-inline:auto}
+.ocr-loading-zone{text-align:center;padding:64px 20px}
+.ocr-spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:_rot .7s linear infinite;margin:0 auto 16px}
+.ocr-loading-text{font-size:14px;font-weight:500;color:var(--text2)}
+.ocr-loading-sub{font-size:12px;color:var(--text3);margin-top:4px}
+.ocr-review-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.ocr-review-title{font-size:14px;font-weight:500;margin-bottom:3px}
+.ocr-review-sub{font-size:12px;color:var(--text2);line-height:1.6}
+.ocr-lecture-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px}
+.ocr-card-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.ocr-color-dot{width:22px;height:22px;border-radius:50%;flex-shrink:0;cursor:pointer;border:2px solid var(--surface2);box-shadow:0 0 0 1.5px var(--border);transition:transform .1s}
+.ocr-color-dot:hover{transform:scale(1.2)}
+.ocr-inp{border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px;background:var(--surface2);color:var(--text);font-family:inherit;outline:none}
+.ocr-inp:focus{border-color:var(--accent)}
+.ocr-classname{flex:1;min-width:120px}
+.ocr-professor{width:110px}
+.ocr-del-btn{background:none;border:none;color:var(--text3);cursor:pointer;border-radius:6px;padding:6px;display:flex;align-items:center;justify-content:center;min-width:36px;min-height:36px}
+.ocr-del-btn:hover{color:var(--hi-t);background:var(--danger-bg)}
+.ocr-sched-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.ocr-sched-row{display:flex;align-items:center;gap:6px;background:var(--surface2);border-radius:8px;padding:8px 10px;flex-wrap:wrap}
+.ocr-sel{border:1px solid var(--border);border-radius:8px;padding:7px 6px;font-size:13px;background:var(--surface2);color:var(--text);font-family:inherit;outline:none;cursor:pointer;min-height:36px}
+.ocr-sel:focus{border-color:var(--accent)}
+.ocr-time{width:88px}
+.ocr-time-sep{font-size:12px;color:var(--text2);flex-shrink:0}
+.ocr-classroom{flex:1;min-width:72px}
+.ocr-del-sched-btn{background:none;border:none;color:var(--text3);cursor:pointer;border-radius:6px;padding:4px 5px;display:flex;align-items:center;justify-content:center;min-width:30px;min-height:30px;flex-shrink:0}
+.ocr-del-sched-btn:hover:not(:disabled){color:var(--hi-t)}
+.ocr-del-sched-btn:disabled{opacity:.3;cursor:default}
+.ocr-add-sched-btn{background:none;border:1px dashed rgba(99,102,241,.35);border-radius:8px;padding:7px 14px;font-size:12px;color:var(--accent);cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:5px;min-height:36px}
+.ocr-add-sched-btn:hover{background:var(--accent-bg)}
+.ocr-add-lec-btn{background:none;border:1px dashed var(--border);border-radius:12px;padding:14px;font-size:13px;color:var(--text2);cursor:pointer;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;min-height:48px;margin-bottom:60px}
+.ocr-add-lec-btn:hover{background:var(--surface2);border-color:var(--text2);color:var(--text)}
+.ocr-confirm-bar{position:sticky;bottom:0;padding-top:10px;background:linear-gradient(transparent,var(--surface) 35%)}
+.ocr-success{text-align:center;padding:48px 20px}
+.ocr-success-title{font-size:15px;font-weight:500;margin-bottom:8px}
+.ocr-success-sub{font-size:13px;color:var(--text2);line-height:1.7}
+@media(max-width:768px){.ocr-professor{width:auto;flex:1}.ocr-time{width:80px}.ocr-sched-row{gap:4px}}
+
+/* ── 데스크탑 전용 hover 효과 ────────────────────────────────────────── */
+@media (hover: hover) {
+  .cal-day:hover{background:var(--surface2)}
+  .task-card:hover{border-color:var(--accent);box-shadow:0 2px 12px rgba(99,102,241,.12)}
+  .btn-primary:hover{background:var(--accent2)}
+  .btn-sec:hover{background:var(--surface2)}
+  .ctx-item.danger:hover{background:var(--danger-bg)}
+  .sort-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .job-card:hover{border-color:var(--accent);box-shadow:0 2px 12px rgba(99,102,241,.1)}
+  .modal-bg{align-items:flex-start;padding-top:40px}
+  .modal{border-radius:12px;margin-bottom:40px;width:92%;max-width:580px;transform:translateY(14px)}
+  .modal-bg.open .modal{transform:translateY(0)}
+}
+
+/* ── 모바일 반응형 (@media max-width: 768px) ─────────────────────────── */
+@media (max-width: 768px) {
+  .app-wrap{padding:8px}
+  .tab{padding:10px 14px;font-size:12px}
+  .tab i{font-size:16px}
+  .cal-day{min-height:70px;padding:2px}
+  .cal-day-header{padding:5px 1px;font-size:10px}
+  .day-num{font-size:11px;width:18px;height:18px;margin-bottom:1px}
+  .cal-evt{display:block !important;font-size:9px;padding:1px 3px;margin-bottom:1px;line-height:1.3;border-radius:2px;white-space:normal;word-break:break-all;overflow-wrap:break-word;overflow:hidden;width:100%;box-sizing:border-box;display:-webkit-box !important;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .cal-nav button{padding:6px 10px}
+  #cal-year,#cal-month{font-size:13px !important}
+  .panel{padding:10px}
+  .form-row{grid-template-columns:1fr}
+  .form-group input,.form-group select,.form-group textarea{font-size:16px;padding:11px 12px}
+  .btn-primary,.btn-sec{padding:12px 16px;font-size:15px;width:100%}
+  .btn-primary+.btn-sec{margin-top:8px}
+  .modal-body-btns{display:flex;gap:8px}
+  .modal-body-btns .btn-primary,
+  .modal-body-btns .btn-sec{width:auto;flex:1}
+  .sort-bar .sort-btn{font-size:11px;padding:5px 10px}
+  .day-task-row{padding:12px 0}
+  .day-task-meta{flex-direction:column;align-items:flex-end;gap:2px}
+  .prog-slider{height:32px}
+  .info-grid{grid-template-columns:1fr 1fr}
+  .jobs-toolbar{flex-direction:column;align-items:flex-start}
+  .mini-btn{display:none !important}
+  /* 감사 업무 탭 모바일 조회 전용 (Read-Only) */
+  #audit-add-root-btn  { display: none !important; }
+  .audit-actions       { display: none !important; }
+  .audit-modal-footer  { display: none !important; }
+  .audit-req-cb        { display: none !important; }
+}
+
+@media (max-width: 400px) {
+  .tab span{display:none}
+  .tab i{font-size:18px}
+  .cal-day{min-height:70px;padding:2px 1px}
+  .cal-evt{display:-webkit-box !important;font-size:9px;padding:1px 2px;margin-bottom:1px;line-height:1.3;border-radius:2px;white-space:normal;word-break:break-all;overflow-wrap:break-word;overflow:hidden;width:100%;box-sizing:border-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .day-num{font-size:10px;width:16px;height:16px;margin-bottom:1px}
+}
+
+
+/* ── 감사 업무 관리 ───────────────────────────────────────────────────── */
+.audit-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:768px){.audit-layout{grid-template-columns:1fr}}
+.audit-panel-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.audit-panel-hdr h3{font-size:14px;font-weight:600;color:var(--text)}
+.audit-tree{border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:60px}
+.audit-node-wrap{border-bottom:1px solid var(--border2)}
+.audit-node-wrap:last-child{border-bottom:none}
+.audit-row{display:flex;align-items:center;gap:4px;padding:6px 8px;font-size:13px;background:var(--surface);transition:background 0.1s}
+.audit-row:hover{background:var(--surface2)}
+.audit-level-1{font-weight:600;color:var(--text)}
+.audit-level-2{color:var(--text)}
+.audit-level-3{color:var(--text2)}
+.audit-level-4{color:var(--text2)}
+.audit-toggle{cursor:pointer;font-size:10px;color:var(--text2);width:14px;flex-shrink:0;user-select:none}
+.audit-toggle-gap{width:14px;flex-shrink:0}
+.audit-icon{flex-shrink:0;font-size:13px}
+.audit-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.audit-excel-tag{font-size:10px;color:var(--accent);background:var(--accent-bg);border-radius:4px;padding:1px 5px;white-space:nowrap;flex-shrink:0;max-width:100px;overflow:hidden;text-overflow:ellipsis}
+.audit-actions{display:none;align-items:center;gap:2px;flex-shrink:0}
+.audit-row:hover .audit-actions{display:flex}
+.audit-btn{background:none;border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:11px;cursor:pointer;color:var(--text2);line-height:1.4}
+.audit-btn:hover{background:var(--surface2)}
+.audit-btn-del:hover{background:var(--danger-bg);border-color:rgba(239,68,68,.3);color:var(--hi-t)}
+.audit-children{}
+.audit-empty{padding:18px;text-align:center;color:var(--text3);font-size:13px}
+.audit-pending-list{border:1px solid var(--border);border-radius:10px;overflow:hidden;min-height:60px}
+.audit-pending-card{padding:10px 12px;border-bottom:1px solid var(--border2);cursor:pointer;transition:background 0.1s}
+.audit-pending-card:last-child{border-bottom:none}
+.audit-pending-card:hover{background:var(--surface2)}
+.audit-pending-path{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px}
+.audit-pending-meta{font-size:11px;color:var(--text2)}
+
+/* ── 감사 서브 탭 ────────────────────────────────────────────────────── */
+.audit-sub-nav{display:flex;gap:0;margin-bottom:16px;border-bottom:1.5px solid var(--border);flex-shrink:0}
+.audit-sub-tab{padding:8px 18px;font-size:13px;font-weight:500;background:none;border:none;cursor:pointer;color:var(--text2);font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-1.5px;transition:color 0.15s}
+.audit-sub-tab:hover{color:var(--accent)}
+.audit-sub-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+
+/* ── 자료 징구 관리 대시보드 ─────────────────────────────────────────── */
+.audit-req-layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:600px){.audit-req-layout{grid-template-columns:1fr}}
+.audit-req-col-received{grid-column:1/-1}
+.audit-req-col-received .audit-req-list{display:grid;grid-template-columns:1fr 1fr;gap:0 8px;max-height:280px}
+@media(max-width:600px){.audit-req-col-received .audit-req-list{grid-template-columns:1fr}}
+.audit-req-col{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+.audit-req-col-draft   .audit-req-col-hdr-inner{background:rgba(59,130,246,0.07);border-bottom:2px solid rgba(59,130,246,0.25)}
+.audit-req-col-waiting .audit-req-col-hdr-inner{background:rgba(245,158,11,0.07);border-bottom:2px solid rgba(245,158,11,0.3)}
+.audit-req-col-received .audit-req-col-hdr-inner{background:rgba(34,197,94,0.07);border-bottom:2px solid rgba(34,197,94,0.3)}
+.audit-req-col-hdr-inner{padding:10px 14px 8px;display:flex;align-items:center;gap:8px}
+.audit-req-col-title{font-size:13px;font-weight:700;color:var(--text);flex:1}
+.audit-req-col-draft   .audit-req-col-title{color:#60a5fa}
+.audit-req-col-waiting .audit-req-col-title{color:#fbbf24}
+.audit-req-col-received .audit-req-col-title{color:#4ade80}
+.audit-req-count{font-size:11px;font-weight:700;padding:1px 7px;border-radius:10px;min-width:20px;text-align:center}
+.audit-req-col-draft   .audit-req-count{background:rgba(59,130,246,0.15);color:#60a5fa}
+.audit-req-col-waiting .audit-req-count{background:rgba(245,158,11,0.2);color:#fbbf24}
+.audit-req-col-received .audit-req-count{background:rgba(34,197,94,0.15);color:#4ade80}
+.audit-req-col-sub{padding:4px 14px 6px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border2)}
+.audit-req-list{min-height:48px;max-height:400px;overflow-y:auto;padding:6px 0 4px;scrollbar-width:thin}
+.audit-req-col-received .audit-req-list{max-height:280px}
+.audit-req-group{margin:0 8px 8px;border:1px solid var(--border2);border-radius:8px;overflow:hidden}
+.audit-req-path-hdr{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface2);border-bottom:1px solid var(--border2)}
+.audit-req-col-draft   .audit-req-path-hdr{background:rgba(59,130,246,0.06)}
+.audit-req-col-waiting .audit-req-path-hdr{background:rgba(245,158,11,0.06)}
+.audit-req-col-received .audit-req-path-hdr{background:rgba(34,197,94,0.06)}
+.audit-req-path-icon{font-size:13px;flex-shrink:0}
+.audit-req-path-text{flex:1;font-size:11.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.audit-req-excel-btn{flex-shrink:0;display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:5px;font-size:11px;font-weight:500;background:rgba(34,197,94,.1);border:1.5px solid #22c55e;color:#4ade80;cursor:pointer;font-family:inherit;white-space:nowrap;transition:background 0.15s,color 0.15s}
+.audit-req-excel-btn:hover{background:#22c55e;color:#fff}
+.audit-req-excel-btn.disabled{background:var(--surface2);border-color:var(--border);color:var(--text3);cursor:not-allowed}
+.audit-req-row{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--border2);transition:background 0.1s}
+.audit-req-row:last-child{border-bottom:none}
+.audit-req-row-draft:hover   {background:rgba(59,130,246,0.06)}
+.audit-req-row-waiting:hover {background:rgba(245,158,11,0.06)}
+.audit-req-row-received:hover{background:rgba(34,197,94,0.06)}
+.audit-req-cb{flex-shrink:0;cursor:pointer;width:14px;height:14px;accent-color:var(--accent)}
+.audit-req-row-text{flex:1;font-size:12.5px;color:var(--text);line-height:1.45;word-break:break-all}
+.audit-req-row-draft   .audit-req-row-text{color:#93c5fd}
+.audit-req-row-waiting .audit-req-row-text{color:#fde68a}
+.audit-req-row-received .audit-req-row-text{color:#86efac;text-decoration:line-through;opacity:.8}
+.audit-req-edit-btn{flex-shrink:0;background:none;border:none;cursor:pointer;font-size:12px;color:var(--text3);padding:2px 4px;border-radius:4px;opacity:0;transition:opacity 0.15s}
+.audit-req-row:hover .audit-req-edit-btn{opacity:1}
+.audit-req-revert-btn{flex-shrink:0;background:none;border:none;cursor:pointer;font-size:11px;color:var(--text3);padding:2px 5px;border-radius:4px;opacity:0;transition:opacity 0.15s;font-family:inherit}
+.audit-req-row:hover .audit-req-revert-btn{opacity:1}
+.audit-req-revert-btn:hover{color:#f59e0b;background:rgba(245,158,11,0.1)}
+.audit-req-empty{padding:20px 16px;text-align:center;color:var(--text3);font-size:12px}
+.audit-req-refresh{display:flex;justify-content:flex-end;margin-bottom:10px}
+.audit-req-refresh-btn{padding:5px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;color:var(--text2);font-family:inherit;transition:background 0.1s}
+.audit-req-refresh-btn:hover{background:var(--surface3)}
+
+/* ── 동기화 인디케이터 ───────────────────────────────────────────────── */
+@keyframes _rot{to{transform:rotate(360deg)}}
+#sync-indicator{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:rgba(99,102,241,.92);color:#fff;font-size:12px;padding:5px 14px;border-radius:20px;display:none;align-items:center;gap:6px;z-index:400;pointer-events:none;box-shadow:0 2px 12px rgba(99,102,241,.35)}
+#sync-indicator .ti{animation:_rot 0.9s linear infinite}
+
+/* ── 토스트 알림 ─────────────────────────────────────────────────────── */
+.app-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--surface3);color:var(--text);padding:10px 20px;border-radius:10px;font-size:13px;z-index:500;opacity:0;transition:opacity .22s,transform .22s;white-space:pre-line;text-align:center;max-width:320px;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5)}
+.app-toast.visible{opacity:1;transform:translateX(-50%) translateY(0)}
+.app-toast.app-toast-warn{background:var(--warn-bg);color:var(--warn-t)}
+.app-toast.app-toast-error{background:var(--danger-bg);color:var(--hi-t)}
+.app-toast.app-toast-success{background:var(--success-bg);color:var(--lo-t)}
+
+/* ── 감사 트리 검색 ──────────────────────────────────────────────────── */
+.audit-search-wrap{position:relative;margin-bottom:8px}
+.audit-search-icon{position:absolute;left:9px;top:50%;transform:translateY(-50%);font-size:11px;pointer-events:none;opacity:0.4}
+#audit-search{width:100%;padding:6px 26px 6px 27px;border:1px solid var(--border);border-radius:8px;font-size:12px;outline:none;font-family:inherit;color:var(--text);background:var(--surface2);transition:border-color 0.15s,box-shadow 0.15s}
+#audit-search:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(99,102,241,.15);background:var(--surface)}
+#audit-search::placeholder{color:var(--text3)}
+#audit-search-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;display:none;padding:1px 3px;border-radius:3px;line-height:1}
+#audit-search-clear:hover{background:var(--surface3);color:var(--text2)}
+.audit-search-path{flex:1;min-width:0;overflow:hidden;display:flex;align-items:center;gap:5px}
+.audit-search-prefix{color:var(--text3);font-size:11.5px;flex-shrink:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.audit-search-company{font-size:10.5px;font-weight:600;color:var(--accent);background:var(--accent-bg);border-radius:4px;padding:1px 5px;flex-shrink:0;white-space:nowrap}
+.audit-search-match{color:var(--text);font-weight:600;font-size:12.5px;flex-shrink:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#kanban-sort-select{display:none;height:30px;padding:0 8px;border:1px solid var(--border);border-radius:7px;font-size:11.5px;font-family:inherit;background:var(--surface2);color:var(--text2);cursor:pointer;flex-shrink:0}
+.audit-search-hl{background:#5c3d00;color:#fbbf24;border-radius:2px;padding:0 2px;font-weight:700}
+.audit-search-empty{padding:24px 16px;text-align:center;color:var(--text3);font-size:13px;line-height:1.7}
+
+/* ── 뷰 전환 툴바 ────────────────────────────────────────────────────── */
+.audit-main-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.audit-main-toolbar .audit-search-wrap{flex:1;margin-bottom:0}
+.audit-view-toggle{display:flex;background:var(--surface2);border-radius:8px;padding:2px;gap:2px;flex-shrink:0}
+.audit-view-btn{padding:4px 11px;border:none;border-radius:6px;font-size:11.5px;font-weight:500;cursor:pointer;color:var(--text2);background:transparent;font-family:inherit;transition:background .15s,color .15s;white-space:nowrap}
+.audit-view-btn.active{background:var(--surface3);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+
+/* ── 모바일 칸반 가로 스크롤 ─────────────────────────────────────────── */
+@media(max-width:768px){
+  #audit-kanban-panel{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:12px}
+  .audit-kanban-board{min-width:640px}
+}
+
+/* ── 칸반 보드 ───────────────────────────────────────────────────────── */
+#audit-kanban-panel{padding-bottom:8px}
+.audit-kanban-board{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:start}
+.audit-kanban-col{border-radius:10px;overflow:hidden;background:var(--surface2);border:1px solid var(--border)}
+.audit-kanban-col-hdr{padding:8px 12px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:6px}
+.audit-kanban-col.col-waiting .audit-kanban-col-hdr{background:rgba(245,158,11,.13);color:#fbbf24;border-bottom:2px solid rgba(245,158,11,.35)}
+.audit-kanban-col.col-writing .audit-kanban-col-hdr{background:rgba(99,102,241,.09);color:#a5b4fc;border-bottom:2px solid rgba(99,102,241,.28)}
+.audit-kanban-col.col-review  .audit-kanban-col-hdr{background:rgba(239,68,68,.09);color:#fca5a5;border-bottom:2px solid rgba(239,68,68,.28)}
+.audit-kanban-col.col-done    .audit-kanban-col-hdr{background:rgba(34,197,94,.09);color:#86efac;border-bottom:2px solid rgba(34,197,94,.28)}
+.audit-kanban-col-count{margin-left:auto;font-size:11px;background:rgba(255,255,255,.08);border-radius:10px;padding:1px 7px}
+.audit-kanban-cards{padding:6px;min-height:40px;display:flex;flex-direction:column;gap:5px}
+.audit-kanban-card{background:var(--surface3);border-radius:8px;padding:8px 10px;cursor:pointer;transition:background .12s,transform .1s;border-left:3px solid transparent}
+.audit-kanban-card:hover{background:#383b5a;transform:translateY(-1px)}
+.col-waiting .audit-kanban-card{border-left-color:#f59e0b}
+.col-writing .audit-kanban-card{border-left-color:var(--accent)}
+.col-review  .audit-kanban-card{border-left-color:#ef4444}
+.col-done    .audit-kanban-card{border-left-color:#22c55e}
+.audit-kanban-company{font-size:10px;color:var(--text3);margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.audit-kanban-name{font-size:12px;font-weight:600;color:var(--text);line-height:1.4;word-break:break-word}
+.audit-kanban-excel{margin-top:5px;font-size:10.5px;color:var(--lo-t);display:flex;align-items:center;gap:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.audit-kanban-no-excel{margin-top:5px;font-size:10.5px;color:var(--text3)}
+.audit-kanban-empty{padding:16px 8px;text-align:center;color:var(--text3);font-size:11px}
+</style>
+</head>
+<body>
+
+<!-- 미니뷰 (Electron 전용) -->
+<div id="mini-view">
+  <div class="mini-header">
+    <div style="display:flex;align-items:center">
+      <span class="mini-header-title">일정 목록</span>
+      <span class="mini-count" id="mini-count"></span>
+    </div>
+    <button class="mini-expand-btn" onclick="toggleWindowMode()"><i class="ti ti-arrows-maximize"></i> 큰 창</button>
+  </div>
+  <div class="mini-list" id="mini-list"></div>
+</div>
+
+<!-- 동기화 인디케이터 -->
+<div id="sync-indicator"><i class="ti ti-refresh"></i> 동기화 중...</div>
+
+<div class="app-wrap">
+<div class="tabs">
+  <div class="tab active" data-tab="calendar" onclick="switchTab('calendar')"><i class="ti ti-calendar"></i> <span>달력</span></div>
+  <div class="tab" data-tab="tasks" onclick="switchTab('tasks')"><i class="ti ti-list-check"></i> <span>일정 목록</span></div>
+  <div class="tab" data-tab="progress" onclick="switchTab('progress')"><i class="ti ti-chart-line"></i> <span>진행률</span></div>
+  <div class="tab" data-tab="jobs" onclick="switchTab('jobs')" id="tab-jobs"><i class="ti ti-building"></i> <span>채용공고</span><span class="tab-badge" id="jobs-badge" style="display:none">0</span></div>
+  <div class="tab" data-tab="attendance" onclick="switchTab('attendance')"><i class="ti ti-school"></i> <span>출결 관리</span></div>
+  <div class="tab" data-tab="audit" onclick="switchTab('audit')"><i class="ti ti-file-spreadsheet"></i> <span>감사 업무</span></div>
+  <div class="tab" onclick="location.href='schedule.html'"><i class="ti ti-calendar-plus"></i> <span>시간표 등록</span></div>
+  <button class="mini-btn" onclick="toggleWindowMode()" title="작은 창으로 전환"><i class="ti ti-layout-sidebar-right-collapse"></i> 작은 창</button>
+</div>
+
+<!-- 달력 탭 -->
+<div id="panel-calendar" class="panel active">
+  <div class="cal-header">
+    <div class="cal-nav">
+      <select id="cal-year" onchange="curYear=parseInt(this.value);selectedDate=null;document.getElementById('day-panel').style.display='none';renderCalendar()"></select>
+      <select id="cal-month" onchange="curMonth=parseInt(this.value);selectedDate=null;document.getElementById('day-panel').style.display='none';renderCalendar()">
+        <option value="0">1월</option><option value="1">2월</option><option value="2">3월</option><option value="3">4월</option>
+        <option value="4">5월</option><option value="5">6월</option><option value="6">7월</option><option value="7">8월</option>
+        <option value="8">9월</option><option value="9">10월</option><option value="10">11월</option><option value="11">12월</option>
+      </select>
+    </div>
+    <button class="btn-sec" onclick="openAddModal(null,null)" style="font-size:13px;padding:7px 14px;width:auto;min-height:40px"><i class="ti ti-plus"></i> 일정 추가</button>
+  </div>
+  <div id="cal-outer">
+  <div class="cal-grid" id="cal-grid">
+    <div class="cal-day-header">일</div><div class="cal-day-header">월</div><div class="cal-day-header">화</div>
+    <div class="cal-day-header">수</div><div class="cal-day-header">목</div><div class="cal-day-header">금</div><div class="cal-day-header">토</div>
+  </div>
+  </div>
+  <div class="legend">
+    <span><span class="legend-dot" style="background:var(--hi-bg)"></span>긴급</span>
+    <span><span class="legend-dot" style="background:var(--md-bg)"></span>보통</span>
+    <span><span class="legend-dot" style="background:var(--lo-bg)"></span>여유</span>
+    <span><span class="legend-dot" style="background:var(--accent-bg);border-left:2px solid var(--accent)"></span>세부일정</span>
+  </div>
+  <div id="day-panel" style="display:none"></div>
+</div>
+
+<!-- 일정 목록 탭 -->
+<div id="panel-tasks" class="panel">
+  <div class="sort-bar">
+    <span style="font-size:12px;color:var(--text2);flex-shrink:0">정렬:</span>
+    <button class="sort-btn active" onclick="setSort('deadline-asc')">기한 빠른순</button>
+    <button class="sort-btn" onclick="setSort('deadline-desc')">기한 늦은순</button>
+    <button class="sort-btn" onclick="setSort('urgency-asc')">긴급 높은순</button>
+    <button class="sort-btn" onclick="setSort('urgency-desc')">긴급 낮은순</button>
+    <button class="sort-btn" onclick="setSort('progress-asc')">진행 낮은순</button>
+    <button class="sort-btn" onclick="setSort('progress-desc')">진행 높은순</button>
+  </div>
+  <div class="task-list" id="task-list"></div>
+</div>
+
+<!-- 진행률 탭 -->
+<div id="panel-progress" class="panel">
+  <div id="prog-list"></div>
+</div>
+
+<!-- 채용공고 탭 -->
+<div id="panel-jobs" class="panel">
+  <div class="jobs-toolbar">
+    <div>
+      <span style="font-size:14px;font-weight:500">KICPA 구인(수습CPA)</span>
+      <span class="jobs-source" id="jobs-last-check" style="margin-left:8px"></span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <button class="ext-btn" onclick="openKicpa()"><i class="ti ti-external-link"></i> KICPA 바로가기</button>
+      <button class="btn-sec" style="font-size:13px;padding:7px 14px;width:auto;min-height:40px" onclick="refreshJobs()" id="jobs-refresh-btn"><i class="ti ti-refresh"></i> 새로고침</button>
+    </div>
+  </div>
+  <div id="jobs-list"><div class="jobs-status"><i class="ti ti-loader"></i> 공고 불러오는 중...</div></div>
+</div>
+
+<!-- 출결 관리 탭 -->
+<div id="panel-attendance" class="panel">
+
+  <!-- 현재 학기 표시 -->
+  <div class="ocr-semester-bar" id="ocr-semester-bar" style="display:none">
+    <i class="ti ti-calendar-event"></i>
+    현재 학기: <strong id="ocr-semester-name">–</strong>
+  </div>
+
+  <!-- ① 업로드 존 -->
+  <div id="ocr-upload-zone">
+    <i class="ocr-upload-icon ti ti-photo-scan"></i>
+    <div class="ocr-upload-title">에브리타임 시간표 캡처 이미지 업로드</div>
+    <div class="ocr-upload-sub">JPG · PNG 지원 &nbsp;|&nbsp; 에브리타임 앱 스크린샷을 그대로 올려주세요</div>
+    <label for="ocr-file-input" style="cursor:pointer">
+      <span class="btn-primary" style="display:inline-flex;align-items:center;gap:6px;padding:10px 22px;cursor:pointer">
+        <i class="ti ti-upload"></i> 이미지 선택
+      </span>
+    </label>
+    <input type="file" id="ocr-file-input" accept="image/*" style="display:none">
+    <div class="ocr-notice">
+      <strong>인식 정확도 팁</strong><br>
+      · 시간표 전체가 나오도록 찍은 스크린샷을 사용하세요<br>
+      · OCR 오류는 다음 단계에서 수동으로 수정할 수 있습니다<br>
+      · 화/목처럼 같은 강의가 두 블록으로 나뉜 경우 '시간대 추가'로 합쳐 주세요
+    </div>
+  </div>
+
+  <!-- ② 로딩 존 -->
+  <div id="ocr-loading-zone" style="display:none;text-align:center;padding:64px 20px">
+    <div class="ocr-spinner"></div>
+    <div class="ocr-loading-text">에브리타임 시간표를 분석 중입니다...</div>
+    <div class="ocr-loading-sub">OCR 처리 중 · 이미지 크기에 따라 10~30초 소요</div>
+  </div>
+
+  <!-- ③ 수정·확정 존 -->
+  <div id="ocr-review-zone" style="display:none">
+    <div class="ocr-review-header">
+      <div>
+        <div class="ocr-review-title">
+          <i class="ti ti-pencil" style="color:var(--accent);margin-right:4px"></i>
+          인식 결과를 확인하고 수정해 주세요
+        </div>
+        <div class="ocr-review-sub">
+          강의명·요일·시간·강의실을 직접 편집할 수 있습니다.
+          화/목처럼 같은 강의가 분리된 경우 하나 삭제 후 '시간대 추가'로 합치세요.
+        </div>
+      </div>
+      <button class="btn-sec" style="font-size:12px;padding:7px 12px;width:auto;white-space:nowrap;flex-shrink:0"
+              onclick="resetOcrView()">
+        <i class="ti ti-arrow-left"></i> 다시 업로드
+      </button>
+    </div>
+
+    <div id="ocr-lecture-list"></div>
+
+    <button class="ocr-add-lec-btn" onclick="addLecture()">
+      <i class="ti ti-plus"></i> 강의 직접 추가
+    </button>
+
+    <div class="ocr-confirm-bar">
+      <button class="btn-primary" id="ocr-confirm-btn" onclick="confirmAndSave()"
+              style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px">
+        <i class="ti ti-device-floppy"></i> 시간표 확정 및 저장
+      </button>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- 감사 업무 관리 탭 -->
+<div id="panel-audit" class="panel">
+
+  <!-- 서브 탭 네비게이션 -->
+  <div class="audit-sub-nav">
+    <button class="audit-sub-tab active" onclick="switchAuditSubTab('main')">📋 업무 관리</button>
+    <button class="audit-sub-tab" onclick="switchAuditSubTab('requests')">📬 자료 징구 관리</button>
+  </div>
+
+  <!-- 업무 관리: 툴바 + 트리 뷰 + 칸반 뷰 -->
+  <div id="audit-main-panel">
+
+    <!-- 공용 툴바: 뷰 전환 + 검색 + 회사 추가 -->
+    <div class="audit-main-toolbar">
+      <div class="audit-view-toggle">
+        <button class="audit-view-btn active" id="audit-vbtn-tree"
+                onclick="switchAuditView('tree')">🌲 트리</button>
+        <button class="audit-view-btn" id="audit-vbtn-kanban"
+                onclick="switchAuditView('kanban')">📋 칸반</button>
+      </div>
+      <select id="kanban-sort-select" title="카드 정렬 기준"
+              onchange="onKanbanSortChange(this.value)">
+        <option value="asc">⏱ 오래된 순</option>
+        <option value="desc">🔥 최신순</option>
+      </select>
+      <div class="audit-search-wrap">
+        <span class="audit-search-icon">🔍</span>
+        <input type="text" id="audit-search"
+               placeholder="노드 / 조서 검색…"
+               oninput="onAuditSearch(this.value)"
+               autocomplete="off">
+        <button id="audit-search-clear" title="검색 초기화"
+                onclick="clearAuditSearch()">✕</button>
+      </div>
+      <button id="audit-add-root-btn" class="btn-sec" style="font-size:12px;padding:5px 10px;width:auto;min-height:32px;flex-shrink:0"
+              onclick="auditAddRoot()"><i class="ti ti-plus"></i> 회사 추가</button>
+    </div>
+
+    <!-- 트리 뷰 (기본) -->
+    <div id="audit-tree-view" class="audit-layout">
+
+      <!-- 좌: 4단계 업무 트리 -->
+      <div>
+        <div class="audit-panel-hdr">
+          <h3>📋 감사 업무 트리</h3>
+        </div>
+        <div id="audit-tree" class="audit-tree">
+          <div class="audit-empty">불러오는 중…</div>
+        </div>
+        <div id="audit-search-result" class="audit-tree" style="display:none"></div>
+      </div>
+
+      <!-- 우: Pending 백로그 -->
+      <div>
+        <div class="audit-panel-hdr">
+          <h3>⏸ 진행 중인 작업</h3>
+          <span style="font-size:11px;color:var(--text3)">45분 미사용 시 자동 저장</span>
+        </div>
+        <div id="audit-pending-list" class="audit-pending-list">
+          <div class="audit-empty">보류된 작업이 없습니다</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 칸반 뷰 (전환 시 표시) -->
+    <div id="audit-kanban-panel" style="display:none"></div>
+
+  </div>
+
+  <!-- 신규: 자료 징구 관리 대시보드 -->
+  <div id="audit-request-panel" style="display:none"></div>
+
+</div>
+
+<!-- 컨텍스트 메뉴 (우클릭 / 롱프레스) -->
+<div id="ctx-menu" style="display:none">
+  <div class="ctx-item danger" id="ctx-task-delete" onclick="ctxDelete()"><i class="ti ti-trash"></i> 일정 삭제</div>
+  <div class="ctx-item" id="ctx-job-deadline" onclick="ctxAddJobDeadline()" style="display:none"><i class="ti ti-calendar-plus"></i> 마감일을 일정에 추가</div>
+</div>
+
+<!-- 모달 -->
+<div id="modal-bg" class="modal-bg" style="display:none" onclick="handleModalBgClick(event)">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title"></div>
+      <button class="close-btn" onclick="closeModal()">×</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Electron 로컬: config.js 에서 window.ENV 로드 (GITHUB_TOKEN, GEMINI_API_KEY)
+     Vercel 배포: config.js 없어도 onerror 로 무시 -->
+<script src="renderer/holidays.js"></script>
+<script src="config.js" onerror="if(!window.ENV)window.ENV={}"></script>
+<script src="renderer/app.js"></script>
+<script src="renderer/ocr.js"></script>
+<script src="renderer/scheduleView.js"></script>
+<script src="renderer/auditView.js"></script>
+</body>
+</html>

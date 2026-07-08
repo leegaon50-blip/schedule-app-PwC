@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>시간표 등록 — 일정 관리</title>
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+  <!-- Electron 로컬: config.js 에서 window.ENV.GEMINI_API_KEY 로드
+       Vercel 배포: config.js 없어도 onerror 로 무시 → /api/analyze-timetable 프록시 사용 -->
+  <script src="./config.js" onerror="if(!window.ENV)window.ENV={}"></script>
+  <style>
+    /* ── Reset & Variables ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #f5f5f3;
+      --surface: #ffffff;
+      --border:  #e5e7eb;
+      --text:    #1f2937;
+      --sub:     #6b7280;
+      --primary: #3b82f6;
+      --pri-d:   #2563eb;
+      --radius:  10px;
+      --shadow:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+    }
+
+    html, body {
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    body { display: flex; flex-direction: column; }
+
+    /* ── Electron 타이틀바 드래그 영역 ─────────────────────────────── */
+    #drag-region {
+      height: 28px;
+      -webkit-app-region: drag;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── 상단 헤더 ──────────────────────────────────────────────────── */
+    #app-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      height: 50px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      -webkit-app-region: no-drag;
+    }
+
+    #app-header h1 {
+      flex: 1;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .btn-back {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 5px 11px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--sub);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background .15s, color .15s;
+    }
+    .btn-back:hover { background: var(--bg); color: var(--text); }
+
+    /* ── 학기 정보 바 ────────────────────────────────────────────────── */
+    #ocr-semester-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 20px;
+      background: #eff6ff;
+      border-bottom: 1px solid #bfdbfe;
+      font-size: 12px;
+      color: #1e40af;
+      flex-shrink: 0;
+    }
+    #ocr-semester-bar .sem-icon { font-size: 14px; }
+    #ocr-semester-name { font-weight: 600; }
+
+    /* ── 메인 스크롤 영역 ────────────────────────────────────────────── */
+    #main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 20px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #main-content::-webkit-scrollbar { width: 6px; }
+    #main-content::-webkit-scrollbar-track { background: transparent; }
+    #main-content::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+
+    /* ── ① 업로드 존 ─────────────────────────────────────────────────── */
+    #ocr-upload-zone {
+      width: 100%;
+      max-width: 540px;
+      border: 2px dashed #d1d5db;
+      border-radius: 14px;
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 56px 28px;
+      gap: 14px;
+      cursor: default;
+      transition: border-color .2s, background .2s;
+      user-select: none;
+    }
+    #ocr-upload-zone.dragover {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .upload-icon {
+      font-size: 56px;
+      color: #9ca3af;
+      transition: color .2s;
+    }
+    #ocr-upload-zone.dragover .upload-icon { color: var(--primary); }
+
+    #ocr-upload-zone > p {
+      color: var(--sub);
+      text-align: center;
+      line-height: 1.8;
+      font-size: 14px;
+    }
+
+    .upload-hint {
+      font-size: 11px;
+      color: #9ca3af;
+      text-align: center;
+    }
+
+    .btn-upload {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 9px 22px;
+      border-radius: 8px;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background .15s;
+    }
+    .btn-upload:hover { background: var(--pri-d); }
+
+    /* ── ② 로딩 존 ──────────────────────────────────────────────────── */
+    #ocr-loading-zone {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      padding: 80px 24px;
+      color: var(--sub);
+    }
+
+    .loading-spinner {
+      font-size: 52px;
+      color: var(--primary);
+      animation: ocr-spin .8s linear infinite;
+      display: block;
+    }
+
+    #ocr-loading-zone > p {
+      font-size: 15px;
+      color: var(--text);
+      font-weight: 500;
+    }
+
+    @keyframes ocr-spin { to { transform: rotate(360deg); } }
+
+    /* ── ③ 리뷰 존 ──────────────────────────────────────────────────── */
+    #ocr-review-zone {
+      width: 100%;
+      max-width: 760px;
+    }
+
+    .review-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 18px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .review-header h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .review-hint { font-size: 12px; color: var(--sub); line-height: 1.7; }
+    .review-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+    /* 보조 버튼 (scheduleView.js 성공 화면에서도 참조) */
+    .btn-sec {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background .15s;
+    }
+    .btn-sec:hover { background: var(--bg); }
+
+    /* 강의 목록 */
+    #ocr-lecture-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .empty {
+      text-align: center;
+      color: var(--sub);
+      padding: 36px 16px;
+      font-size: 14px;
+      line-height: 1.9;
+    }
+
+    /* ── 강의 카드 ───────────────────────────────────────────────────── */
+    .ocr-lecture-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .ocr-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #fafafa;
+      flex-wrap: wrap;
+    }
+
+    .ocr-color-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      cursor: pointer;
+      flex-shrink: 0;
+      box-shadow: 0 0 0 2px #fff, 0 0 0 3px #d1d5db;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .ocr-color-dot:hover {
+      transform: scale(1.25);
+      box-shadow: 0 0 0 2px #fff, 0 0 0 3px #9ca3af;
+    }
+
+    /* 입력 공통 */
+    .ocr-inp {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 9px;
+      font-size: 13px;
+      color: var(--text);
+      background: #fff;
+      outline: none;
+      font-family: inherit;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .ocr-inp:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+
+    .ocr-classname { flex: 2; min-width: 100px; font-weight: 500; }
+    .ocr-professor { flex: 1.5; min-width: 80px; }
+
+    .ocr-del-btn {
+      margin-left: auto;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      border: 1px solid #fca5a5;
+      background: #fff5f5;
+      color: #dc2626;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .ocr-del-btn:hover { background: #fee2e2; }
+
+    /* ── 시간대 행 ───────────────────────────────────────────────────── */
+    .ocr-sched-list {
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .ocr-sched-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .ocr-sel {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 6px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      outline: none;
+      min-width: 58px;
+      font-family: inherit;
+    }
+    .ocr-sel:focus { border-color: var(--primary); }
+
+    .ocr-time { width: 96px; }
+
+    .ocr-time-sep {
+      color: var(--sub);
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    .ocr-classroom { flex: 1; min-width: 80px; }
+
+    .ocr-del-sched-btn {
+      display: flex;
+      align-items: center;
+      padding: 4px 7px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #9ca3af;
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .ocr-del-sched-btn:not([disabled]):hover {
+      background: #fee2e2;
+      border-color: #fca5a5;
+      color: #dc2626;
+    }
+    .ocr-del-sched-btn[disabled] {
+      opacity: .35;
+      cursor: not-allowed;
+    }
+
+    .ocr-add-sched-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      width: 100%;
+      padding: 8px 14px;
+      border: none;
+      border-top: 1px dashed #e5e7eb;
+      background: #fafafa;
+      color: var(--sub);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background .15s, color .15s;
+    }
+    .ocr-add-sched-btn:hover { background: #f0f9ff; color: var(--primary); }
+
+    /* ── 확정 저장 바 ─────────────────────────────────────────────────── */
+    .confirm-bar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14px;
+      padding: 16px 0 24px;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .confirm-hint {
+      flex: 1;
+      font-size: 12px;
+      color: var(--sub);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 200px;
+    }
+
+    #ocr-confirm-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 26px;
+      border-radius: 8px;
+      border: none;
+      background: var(--primary);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      white-space: nowrap;
+      transition: background .15s, opacity .15s;
+    }
+    #ocr-confirm-btn:hover:not([disabled]) { background: var(--pri-d); }
+    #ocr-confirm-btn[disabled] { opacity: .6; cursor: not-allowed; }
+
+    /* ── 성공 화면 (scheduleView.js _showSaveSuccess 에서 사용) ────────── */
+    .ocr-success {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 60px 24px;
+      text-align: center;
+    }
+    .ocr-success-title {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .ocr-success-sub {
+      font-size: 13px;
+      color: var(--sub);
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Electron 숨김 타이틀바용 드래그 영역 -->
+  <div id="drag-region"></div>
+
+  <!-- 상단 헤더 -->
+  <header id="app-header">
+    <button class="btn-back" onclick="window.location.href='index.html'">
+      <i class="ti ti-chevron-left"></i> 돌아가기
+    </button>
+    <h1>에브리타임 시간표 등록</h1>
+    <div style="width:80px"></div>
+  </header>
+
+  <!-- 활성 학기 정보 바 (loadActiveSemester() 에서 표시) -->
+  <div id="ocr-semester-bar" style="display:none">
+    <i class="ti ti-calendar-event sem-icon"></i>
+    <span>등록 대상 학기 :</span>
+    <strong id="ocr-semester-name"></strong>
+    <span style="color:#93c5fd;margin-left:6px">— 이 학기 기준으로 출결 달력이 생성됩니다.</span>
+  </div>
+
+  <!-- 메인 콘텐츠 -->
+  <main id="main-content">
+
+    <!-- ① 업로드 존 -->
+    <div id="ocr-upload-zone">
+      <input id="ocr-file-input" type="file" accept="image/*" style="display:none">
+      <i class="ti ti-photo-up upload-icon"></i>
+      <p>
+        에브리타임 시간표 스크린샷을<br>
+        여기에 <strong>드래그</strong>하거나 아래 버튼으로 선택하세요.
+      </p>
+      <button class="btn-upload"
+              onclick="document.getElementById('ocr-file-input').click()">
+        <i class="ti ti-upload"></i>&nbsp; 파일 선택
+      </button>
+      <span class="upload-hint">
+        JPG · PNG · WEBP 지원&nbsp;&nbsp;|&nbsp;&nbsp;Tesseract.js OCR (인터넷 연결 필요)
+      </span>
+    </div>
+
+    <!-- ② 로딩 존 -->
+    <div id="ocr-loading-zone" style="display:none">
+      <i class="ti ti-loader-2 loading-spinner"></i>
+      <p>AI가 시간표를 분석하는 중입니다…</p>
+      <small style="color:#9ca3af">최대 12초 소요될 수 있습니다. 잠시만 기다려 주세요.</small>
+    </div>
+
+    <!-- ③ 리뷰 존 -->
+    <div id="ocr-review-zone" style="display:none">
+
+      <div class="review-header">
+        <div>
+          <h2>인식 결과 확인 및 수정</h2>
+          <p class="review-hint">
+            강의명·교수명·시간을 직접 수정하고, 색상 도트를 클릭해 달력 색상을 바꾸세요.
+          </p>
+        </div>
+        <div class="review-header-actions">
+          <button class="btn-sec" onclick="addLecture()">
+            <i class="ti ti-plus"></i> 강의 추가
+          </button>
+          <button class="btn-sec" onclick="resetOcrView()">
+            <i class="ti ti-refresh"></i> 다시 업로드
+          </button>
+        </div>
+      </div>
+
+      <!-- scheduleView.js 가 카드를 렌더링하는 컨테이너 -->
+      <div id="ocr-lecture-list"></div>
+
+      <div class="confirm-bar">
+        <span class="confirm-hint">
+          <i class="ti ti-info-circle"></i>
+          저장 후에도 출결 관리 탭에서 언제든 수정할 수 있습니다.
+        </span>
+        <button id="ocr-confirm-btn" onclick="confirmAndSave()">
+          <i class="ti ti-device-floppy"></i>&nbsp; 시간표 확정 및 저장
+        </button>
+      </div>
+
+    </div><!-- /#ocr-review-zone -->
+
+  </main>
+
+  <script src="./renderer/ocr.js"></script>
+  <script src="./renderer/scheduleView.js"></script>
+
+</body>
+</html>

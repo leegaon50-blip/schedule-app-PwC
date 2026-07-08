@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>감사 업무</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  width:300px;
+  height:100%;
+  overflow:hidden;background:transparent;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','맑은 고딕',sans-serif;
+}
+
+/* ── 카드 ─────────────────────────────────────────────── */
+#card{
+  position:relative;
+  width:300px;
+  height:100%;
+  background:#1e293b;
+  border:1.5px solid rgba(148,163,184,0.35);
+  border-radius:14px;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  box-shadow:0 8px 32px rgba(0,0,0,0.55),
+             0 0 0 1px rgba(255,255,255,0.04) inset;
+}
+
+/* ── 세션 만료 오버레이 ────────────────────────────────── */
+#expired-overlay{
+  position:absolute;inset:0;
+  background:rgba(15,23,42,0.86);
+  backdrop-filter:blur(7px);
+  -webkit-backdrop-filter:blur(7px);
+  display:flex;align-items:center;justify-content:center;
+  border-radius:14px;
+  z-index:999;
+  animation:fadeInOverlay 0.35s ease;
+}
+#expired-msg{text-align:center;padding:24px 20px}
+#expired-icon{font-size:36px;margin-bottom:14px}
+#expired-msg p{
+  color:#e2e8f0;font-size:12px;line-height:1.75;font-weight:500;
+}
+#expired-countdown{
+  margin-top:10px;font-size:11px;color:#64748b;
+}
+@keyframes fadeInOverlay{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
+
+/* ── 타이틀 바 ─────────────────────────────────────────── */
+#title-bar{
+  height:44px;flex-shrink:0;
+  display:flex;align-items:center;
+  padding:0 10px;gap:7px;
+  border-bottom:1px solid rgba(148,163,184,0.15);
+  -webkit-app-region: no-drag;
+}
+#title-bar.minimized{
+  border-bottom:none;
+  border-radius:12px;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+#title-bar.minimized #minimize-btn{
+  -webkit-app-region: no-drag;
+  cursor: pointer;
+}
+#task-icon{font-size:14px;flex-shrink:0}
+#task-title{
+  flex:1;font-size:9.5pt;font-weight:600;color:#f8fafc;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#minimize-btn{
+  flex-shrink:0;width:22px;height:22px;
+  background:rgba(148,163,184,0.1);
+  border:1px solid rgba(148,163,184,0.22);
+  border-radius:6px;color:#64748b;font-size:11px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all 0.15s;
+}
+#minimize-btn:hover{background:rgba(148,163,184,0.22);color:#f8fafc}
+#countdown{display:none}
+
+/* ── 메인 콘텐츠 ───────────────────────────────────────── */
+#content{
+  flex:1;display:flex;flex-direction:column;
+  overflow:hidden;min-height:0;
+}
+
+/* ── 미완료 할 일 스크롤 ────────────────────────────────── */
+#todo-scroll{
+  flex:1;overflow-y:auto;min-height:0;padding:4px 8px 2px;
+}
+#todo-scroll::-webkit-scrollbar{width:4px}
+#todo-scroll::-webkit-scrollbar-track{background:transparent}
+#todo-scroll::-webkit-scrollbar-thumb{
+  background:rgba(148,163,184,0.3);border-radius:2px}
+
+/* ── 할 일 행 ──────────────────────────────────────────── */
+.todo-row{
+  display:flex;align-items:flex-start;gap:6px;
+  padding:5px 3px 5px 4px;
+  border-bottom:1px solid rgba(148,163,184,0.08);
+  border-radius:4px;transition:background 0.1s;
+}
+.todo-row:last-child{border-bottom:none}
+.todo-row:hover{background:rgba(148,163,184,0.07)}
+
+/* 리뷰노트 행 — 미묘한 빨간 틴트 */
+.todo-row.row-review{background:rgba(239,68,68,0.06)}
+.todo-row.row-review:hover{background:rgba(239,68,68,0.11)}
+
+/* 자료요청 행 — 미묘한 파란 틴트 */
+.todo-row.row-draft{background:rgba(59,130,246,0.05)}
+.todo-row.row-draft:hover{background:rgba(59,130,246,0.10)}
+
+/* 자료대기 행 — 미묘한 앰버 틴트 */
+.todo-row.row-waiting{background:rgba(245,158,11,0.04)}
+.todo-row.row-waiting:hover{background:rgba(245,158,11,0.09)}
+
+.todo-row input[type=checkbox]{
+  margin-top:3px;flex-shrink:0;
+  width:15px;height:15px;cursor:pointer;accent-color:#38bdf8;
+}
+.todo-row label{
+  flex:1;font-size:9.5pt;color:#e2e8f0;
+  line-height:1.55;cursor:pointer;word-break:break-all;
+}
+.todo-row label.lbl-review{color:#fef2f2}   /* 리뷰노트: 밝은 화이트 계열 */
+.todo-row label.lbl-draft{color:#eff6ff}    /* 자료요청: 연한 스카이 화이트 */
+.todo-row label.lbl-waiting{color:#94a3b8}  /* 자료대기: 실버/그레이 */
+
+.todo-del{
+  flex-shrink:0;width:18px;height:18px;margin-top:1px;
+  background:none;border:none;color:rgba(148,163,184,0.35);
+  font-size:11px;cursor:pointer;border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:all 0.15s;align-self:flex-start;
+}
+.todo-row:hover .todo-del{opacity:1}
+.todo-del:hover{background:rgba(248,113,113,0.18);color:#f87171}
+
+/* ── 태그 배지 ─────────────────────────────────────────── */
+.tag-badge{
+  display:inline-flex;align-items:center;
+  padding:1px 6px;border-radius:4px;
+  font-size:7.8pt;font-weight:700;
+  letter-spacing:0.01em;vertical-align:middle;
+  margin-right:3px;line-height:1.7;flex-shrink:0;
+  white-space:nowrap;
+}
+
+/* 미완료 — 선명한 배지 */
+.tag-review{
+  background:rgba(239,68,68,0.88);
+  color:#fff;
+  border:1px solid rgba(239,68,68,0.55);
+  text-shadow:0 1px 2px rgba(0,0,0,0.25);
+}
+.tag-draft{
+  background:rgba(59,130,246,0.85);
+  color:#fff;
+  border:1px solid rgba(59,130,246,0.5);
+  text-shadow:0 1px 2px rgba(0,0,0,0.2);
+}
+.tag-waiting{
+  background:rgba(245,158,11,0.88);
+  color:#1c1917;
+  border:1px solid rgba(245,158,11,0.6);
+}
+
+/* 완료된 항목의 배지 — 흐릿한 틴트 */
+.tag-done-review{
+  background:rgba(239,68,68,0.15);
+  color:#f87171;
+  border:1px solid rgba(239,68,68,0.2);
+}
+.tag-done-draft{
+  background:rgba(59,130,246,0.13);
+  color:#93c5fd;
+  border:1px solid rgba(59,130,246,0.2);
+}
+.tag-done-waiting{
+  background:rgba(245,158,11,0.13);
+  color:#fbbf24;
+  border:1px solid rgba(245,158,11,0.18);
+}
+
+/* ── 상태 메시지 ───────────────────────────────────────── */
+#todo-empty{
+  text-align:center;color:#334155;
+  font-size:9pt;padding:20px 0 8px;line-height:1.7;
+}
+#all-done-banner{
+  display:none;text-align:center;
+  font-size:9pt;color:#4ade80;padding:6px 0;font-weight:500;
+}
+
+/* ── 완료 아코디언 ─────────────────────────────────────── */
+#done-section{
+  flex-shrink:0;
+  border-top:1px solid rgba(148,163,184,0.12);
+}
+#done-toggle{
+  width:100%;padding:6px 12px;
+  background:rgba(148,163,184,0.05);
+  border:none;color:#475569;font-size:8.5pt;
+  text-align:left;cursor:pointer;font-family:inherit;
+  transition:background 0.1s;display:flex;align-items:center;gap:4px;
+}
+#done-toggle:hover{background:rgba(148,163,184,0.1);color:#64748b}
+#done-toggle .done-arrow{font-size:9px;transition:transform 0.2s}
+#done-toggle.open .done-arrow{transform:rotate(90deg)}
+#done-list{
+  display:none;max-height:96px;overflow-y:auto;
+  padding:2px 8px 4px;background:rgba(0,0,0,0.12);
+}
+#done-list::-webkit-scrollbar{width:3px}
+#done-list::-webkit-scrollbar-thumb{
+  background:rgba(148,163,184,0.2);border-radius:2px}
+
+/* ── 완료 항목 행 ──────────────────────────────────────── */
+.done-row{
+  display:flex;align-items:flex-start;gap:6px;
+  padding:3px 3px 3px 4px;
+  border-bottom:1px solid rgba(148,163,184,0.06);
+}
+.done-row:last-child{border-bottom:none}
+.done-row:hover{background:rgba(148,163,184,0.05)}
+.done-row input[type=checkbox]{
+  margin-top:2px;flex-shrink:0;
+  width:14px;height:14px;cursor:pointer;accent-color:#22c55e;
+}
+.done-label{
+  flex:1;font-size:8.5pt;color:#334155;
+  text-decoration:line-through;line-height:1.4;word-break:break-all;
+}
+.done-row .todo-del{font-size:10px}
+.done-row:hover .todo-del{opacity:1}
+.done-empty-msg{
+  font-size:8.5pt;color:#1e3a4a;padding:6px 2px;
+}
+
+/* ── 구분선 ────────────────────────────────────────────── */
+.sep{
+  border:none;border-top:1px solid rgba(148,163,184,0.12);
+  flex-shrink:0;margin:0;
+}
+
+/* ── 입력 영역 ─────────────────────────────────────────── */
+#input-section{padding:5px 10px 3px;flex-shrink:0}
+#input-label{
+  font-size:7.5pt;color:#475569;margin-bottom:3px;
+  display:flex;align-items:center;gap:5px;flex-wrap:wrap;
+}
+#input-label .hint-review{color:#f87171;font-weight:700}
+#input-label .hint-waiting{color:#fbbf24;font-weight:700}
+#input-label .hint-sep{color:#334155}
+#input{
+  width:100%;height:50px;resize:none;
+  background:#0f172a;
+  border:1.5px solid rgba(148,163,184,0.22);
+  border-radius:8px;color:#f8fafc;
+  font-size:9.5pt;font-family:inherit;
+  padding:6px 9px;outline:none;
+  transition:border-color 0.2s,box-shadow 0.2s;
+  caret-color:#38bdf8;
+}
+#input:focus{
+  border-color:#38bdf8;
+  box-shadow:0 0 0 2px rgba(56,189,248,0.15);
+}
+#input::placeholder{color:#1e3a5f;font-size:8.5pt}
+
+/* ── 하단 ──────────────────────────────────────────────── */
+#footer{
+  padding:4px 10px 8px;flex-shrink:0;
+  display:flex;justify-content:flex-end;
+}
+#complete-btn{
+  padding:5px 13px;font-size:8.5pt;font-weight:500;
+  background:rgba(74,222,128,0.1);
+  border:1.5px solid rgba(74,222,128,0.28);
+  border-radius:8px;color:rgba(74,222,128,0.7);
+  cursor:pointer;transition:all 0.2s;font-family:inherit;
+}
+#complete-btn:hover{
+  background:rgba(74,222,128,0.2);
+  border-color:rgba(74,222,128,0.6);color:#4ade80;
+}
+#complete-btn.all-done{
+  background:rgba(74,222,128,0.22);border-color:#4ade80;color:#4ade80;
+  box-shadow:0 0 8px rgba(74,222,128,0.18);
+}
+
+/* ── 필터 탭바 ─────────────────────────────────────────── */
+#filter-bar{
+  display:flex;gap:3px;padding:5px 8px;flex-shrink:0;
+  border-bottom:1px solid rgba(148,163,184,0.12);
+}
+.filter-btn{
+  flex:1;padding:3px 0;font-size:8pt;font-weight:600;
+  background:none;border:1px solid transparent;
+  border-radius:5px;color:#475569;cursor:pointer;
+  font-family:inherit;transition:all 0.15s;letter-spacing:0.01em;
+}
+.filter-btn:hover{color:#94a3b8;background:rgba(148,163,184,0.07)}
+.filter-btn.active{
+  background:rgba(56,189,248,0.12);
+  border-color:rgba(56,189,248,0.3);
+  color:#38bdf8;
+}
+
+/* ── 우클릭 컨텍스트 메뉴 ──────────────────────────────── */
+#ctx-menu{
+  position:fixed;z-index:9999;
+  background:#1a2535;
+  border:1px solid rgba(148,163,184,0.22);
+  border-radius:8px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.55);
+  padding:4px;min-width:148px;
+  display:none;
+}
+.ctx-item{
+  padding:6px 12px;font-size:8.5pt;color:#e2e8f0;
+  border-radius:5px;cursor:pointer;white-space:nowrap;
+  transition:background 0.1s;
+}
+.ctx-item:hover{background:rgba(56,189,248,0.15);color:#7dd3fc}
+</style>
+</head>
+<body>
+<div id="card">
+
+  <!-- 타이틀 바 -->
+  <div id="title-bar">
+    <span id="task-icon">📋</span>
+    <span id="task-title">로딩 중…</span>
+    <button id="minimize-btn" title="최소화/복원" onclick="toggleMinimize()">─</button>
+    <span id="countdown"></span>
+  </div>
+
+  <!-- 필터 탭바 -->
+  <div id="filter-bar">
+    <button class="filter-btn active" data-filter="all"     onclick="setFilter('all')">전체</button>
+    <button class="filter-btn"        data-filter="general" onclick="setFilter('general')">일반</button>
+    <button class="filter-btn"        data-filter="data"    onclick="setFilter('data')">자료</button>
+  </div>
+
+  <!-- 메인 콘텐츠 (최소화 시 숨김) -->
+  <!-- 세션 만료 오버레이 (audit-popup:expired 수신 시 표시) -->
+  <div id="expired-overlay" style="display:none">
+    <div id="expired-msg">
+      <div id="expired-icon">⏰</div>
+      <p>세션이 만료되어<br>자동 저장 후 잠금되었습니다</p>
+      <div id="expired-countdown"></div>
+    </div>
+  </div>
+
+  <div id="content">
+
+    <!-- 미완료 할 일 -->
+    <div id="todo-scroll">
+      <div id="all-done-banner">✨ 모든 항목 완료!</div>
+      <div id="todo-list"></div>
+      <div id="todo-empty">Enter 키로 할 일을 추가하세요</div>
+    </div>
+
+    <!-- 완료 아코디언 -->
+    <div id="done-section">
+      <button id="done-toggle" onclick="toggleDoneSection()">
+        <span class="done-arrow">▶</span>
+        완료된 작업 <span id="done-badge" style="color:#22c55e;font-weight:600">0</span>개
+      </button>
+      <div id="done-list"></div>
+    </div>
+
+    <hr class="sep">
+
+    <!-- 입력 -->
+    <div id="input-section">
+      <div id="input-label">
+        <span class="hint-review">!</span> 리뷰노트
+        <span class="hint-sep">·</span>
+        <span style="color:#60a5fa;font-weight:700">?</span> 자료요청
+        <span class="hint-sep">·</span>
+        <span class="hint-waiting">/</span> 자료대기
+        <span class="hint-sep">·</span>
+        ↵ Enter 등록
+      </div>
+      <textarea id="input" placeholder="할 일 입력… (! 리뷰  ? 자료요청  / 자료대기)"></textarea>
+    </div>
+
+    <!-- 완료 버튼 -->
+    <div id="footer">
+      <button id="complete-btn" onclick="handleComplete()">✓ 업무 완료</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── 상태 ──────────────────────────────────────────────────
+
+let _sessionId = null;
+let _deadline  = null;
+let _ticker    = null;
+let _saveTimer = null;
+let _minimized = false;
+let _doneOpen  = false;
+
+// 배열 기반 todo 관리 → DOM과 분리, executeJavaScript 호환
+let _undone = [];   // [{ text }]  미완료 항목
+let _done   = [];   // [{ text }]  완료 항목
+
+let _currentFilter = 'all'; // 'all' | 'general' | 'data'
+let _doneCtxIdx    = -1;    // 우클릭 대상 _done 인덱스
+
+// ── 필터 탭바 ─────────────────────────────────────────────
+
+function setFilter(f) {
+  _currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === f);
+  });
+  renderUndone();
+  syncState();
+}
+
+function _isDataTag(text) {
+  const { tag } = parseTag(text);
+  return tag === 'draft' || tag === 'waiting';
+}
+
+function _matchesFilter(text) {
+  if (_currentFilter === 'all')  return true;
+  if (_currentFilter === 'data') return _isDataTag(text);
+  return !_isDataTag(text); // 'general'
+}
+
+// ── 완료 항목 우클릭 (되돌리기) ───────────────────────────
+
+function _showDoneCtx(e, idx) {
+  e.preventDefault();
+  _doneCtxIdx = idx;
+  document.getElementById('ctx-restore').onclick = _doneCtxRestore;
+  const menu = document.getElementById('ctx-menu');
+  menu.style.display = 'block';
+  const mw = 160, mh = 38;
+  const x = Math.min(e.clientX, window.innerWidth  - mw - 4);
+  const y = Math.min(e.clientY, window.innerHeight - mh - 4);
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+}
+
+function _hideDoneCtx() {
+  document.getElementById('ctx-menu').style.display = 'none';
+  _doneCtxIdx = -1;
+}
+
+function _doneCtxRestore() {
+  if (_doneCtxIdx < 0 || _doneCtxIdx >= _done.length) { _hideDoneCtx(); return; }
+  _uncheckTodo(_doneCtxIdx);
+  _hideDoneCtx();
+}
+
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('ctx-menu').contains(e.target)) _hideDoneCtx();
+});
+document.addEventListener('contextmenu', (e) => {
+  if (!e.target.closest('.done-row')) _hideDoneCtx();
+});
+
+// ── 초기화 ─────────────────────────────────────────────────
+
+window.popupAPI.onInit((data) => {
+  _sessionId = data.sessionId;
+  _deadline  = Date.now() + data.remaining_ms;
+  document.getElementById('task-title').textContent = data.title || '업무';
+
+  const todos = data.todos || [];
+  _undone = todos.filter(t => !t.done).map(t => ({ text: t.text }));
+  _done   = todos.filter(t =>  t.done).map(t => ({ text: t.text }));
+
+  renderUndone();
+  renderDone();
+  syncState();
+  startTicker();
+});
+
+window.popupAPI.onDeadlineReset((data) => {
+  _deadline = Date.now() + data.remaining_ms;
+});
+
+window.popupAPI.onExpired(() => {
+  if (_ticker) clearInterval(_ticker);
+
+  // 오버레이 표시 + 카운트다운 후 자동 닫기
+  const overlay     = document.getElementById('expired-overlay');
+  const countdown   = document.getElementById('expired-countdown');
+  if (overlay) overlay.style.display = 'flex';
+
+  let remaining = 3;
+  const tick = () => {
+    if (countdown) countdown.textContent = `${remaining}초 후 자동으로 닫힙니다`;
+    if (remaining <= 0) { window.close(); return; }
+    remaining--;
+    setTimeout(tick, 1000);
+  };
+  tick();
+});
+
+// ── 타이머 (백그라운드용 — 화면 미표시) ──────────────────
+
+function startTicker() {
+  if (_ticker) clearInterval(_ticker);
+  _ticker = setInterval(() => {
+    if (Math.max(0, _deadline - Date.now()) === 0) clearInterval(_ticker);
+  }, 1000);
+}
+
+// ── 텍스트 파싱 ────────────────────────────────────────────
+
+// raw text에서 접두사를 추출해 태그 타입과 표시용 텍스트를 반환
+function parseTag(text) {
+  const reviewMatch = text.match(/^!\s+(.+)/);
+  if (reviewMatch) return { tag: 'review', display: reviewMatch[1] };
+
+  const draftMatch = text.match(/^\?\s+(.+)/);
+  if (draftMatch) return { tag: 'draft', display: draftMatch[1] };
+
+  const waitingMatch = text.match(/^\/\s+(.+)/);
+  if (waitingMatch) return { tag: 'waiting', display: waitingMatch[1] };
+
+  return { tag: null, display: text };
+}
+
+// 정렬 우선순위: 리뷰노트(0) → 자료요청(1) → 일반(2) → 자료대기(3)
+function tagPriority(text) {
+  const { tag } = parseTag(text);
+  if (tag === 'review')  return 0;
+  if (tag === 'draft')   return 1;
+  if (tag === 'waiting') return 3;
+  return 2;
+}
+
+// ── 렌더링 ─────────────────────────────────────────────────
+
+function renderUndone() {
+  _undone.sort((a, b) => tagPriority(a.text) - tagPriority(b.text));
+
+  const list = document.getElementById('todo-list');
+  list.innerHTML = '';
+  for (let i = 0; i < _undone.length; i++) {
+    const row = _makeUndoneRow(i);
+    if (!_matchesFilter(_undone[i].text)) row.style.display = 'none';
+    list.appendChild(row);
+  }
+}
+
+function renderDone() {
+  const list  = document.getElementById('done-list');
+  const badge = document.getElementById('done-badge');
+  badge.textContent = _done.length;
+  list.innerHTML = '';
+  if (!_done.length) {
+    list.innerHTML = '<div class="done-empty-msg">완료된 항목이 없습니다</div>';
+  } else {
+    for (let i = 0; i < _done.length; i++) {
+      list.appendChild(_makeDoneRow(i));
+    }
+  }
+}
+
+function _makeUndoneRow(idx) {
+  const { tag, display } = parseTag(_undone[idx].text);
+
+  const row = document.createElement('div');
+  row.className = 'todo-row';
+  if (tag === 'review')  row.classList.add('row-review');
+  if (tag === 'draft')   row.classList.add('row-draft');
+  if (tag === 'waiting') row.classList.add('row-waiting');
+
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.id   = `u_${idx}`;
+  cb.addEventListener('change', () => _checkTodo(idx));
+
+  const lbl = document.createElement('label');
+  lbl.htmlFor = `u_${idx}`;
+  if (tag === 'review')  lbl.classList.add('lbl-review');
+  if (tag === 'draft')   lbl.classList.add('lbl-draft');
+  if (tag === 'waiting') lbl.classList.add('lbl-waiting');
+
+  if (tag) {
+    const badge = document.createElement('span');
+    badge.className   = `tag-badge tag-${tag}`;
+    const TAG_LABELS  = { review: '🚨 리뷰노트', draft: '📝 자료요청', waiting: '⏳ 자료대기' };
+    badge.textContent = TAG_LABELS[tag];
+    lbl.appendChild(badge);
+    lbl.appendChild(document.createTextNode(display));
+  } else {
+    lbl.textContent = display;
+  }
+
+  const del = document.createElement('button');
+  del.className   = 'todo-del';
+  del.title       = '삭제';
+  del.textContent = '✕';
+  del.addEventListener('click', (e) => { e.stopPropagation(); _deleteTodo(idx, false); });
+
+  row.appendChild(cb);
+  row.appendChild(lbl);
+  row.appendChild(del);
+  return row;
+}
+
+function _makeDoneRow(idx) {
+  const { tag, display } = parseTag(_done[idx].text);
+
+  const row = document.createElement('div');
+  row.className = 'done-row';
+
+  const cb = document.createElement('input');
+  cb.type    = 'checkbox';
+  cb.id      = `d_${idx}`;
+  cb.checked = true;
+  cb.addEventListener('change', () => _uncheckTodo(idx));
+
+  const lbl = document.createElement('label');
+  lbl.htmlFor   = `d_${idx}`;
+  lbl.className = 'done-label';
+
+  if (tag) {
+    const badge = document.createElement('span');
+    badge.className   = `tag-badge tag-done-${tag}`;
+    const TAG_LABELS  = { review: '🚨 리뷰노트', draft: '📝 자료요청', waiting: '⏳ 자료대기' };
+    badge.textContent = TAG_LABELS[tag];
+    lbl.appendChild(badge);
+    lbl.appendChild(document.createTextNode(display));
+  } else {
+    lbl.textContent = display;
+  }
+
+  const del = document.createElement('button');
+  del.className   = 'todo-del';
+  del.title       = '삭제';
+  del.textContent = '✕';
+  del.addEventListener('click', (e) => { e.stopPropagation(); _deleteTodo(idx, true); });
+
+  row.addEventListener('contextmenu', (e) => _showDoneCtx(e, idx));
+
+  row.appendChild(cb);
+  row.appendChild(lbl);
+  row.appendChild(del);
+  return row;
+}
+
+// ── Todo 상태 변경 ─────────────────────────────────────────
+
+function _checkTodo(idx) {
+  _done.push(_undone.splice(idx, 1)[0]);
+  renderUndone();
+  renderDone();
+  syncState();
+  flushSave();
+  if (_undone.length === 0 && !_doneOpen) toggleDoneSection();
+}
+
+function _uncheckTodo(idx) {
+  _undone.push(_done.splice(idx, 1)[0]);
+  renderUndone();
+  renderDone();
+  syncState();
+  flushSave();
+}
+
+function _deleteTodo(idx, isDone) {
+  if (isDone) _done.splice(idx, 1);
+  else        _undone.splice(idx, 1);
+  if (isDone) renderDone();
+  else        renderUndone();
+  syncState();
+  flushSave();
+}
+
+function syncState() {
+  const empty   = _undone.length === 0 && _done.length === 0;
+  const allDone = _undone.length === 0 && _done.length > 0;
+  const visibleCount = _undone.filter(t => _matchesFilter(t.text)).length;
+
+  const emptyEl = document.getElementById('todo-empty');
+  if (empty) {
+    emptyEl.style.display = 'block';
+    emptyEl.textContent   = 'Enter 키로 할 일을 추가하세요';
+  } else if (visibleCount === 0) {
+    emptyEl.style.display = 'block';
+    emptyEl.textContent   = '이 탭에 해당하는 항목이 없습니다';
+  } else {
+    emptyEl.style.display = 'none';
+  }
+  document.getElementById('all-done-banner').style.display = allDone ? 'block' : 'none';
+  document.getElementById('complete-btn').classList.toggle('all-done', allDone);
+}
+
+// ── Enter 키 → 추가 ───────────────────────────────────────
+
+document.getElementById('input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const text = e.target.value.trim();
+    if (!text) return;
+    _undone.push({ text });
+    e.target.value = '';
+    renderUndone();
+    syncState();
+    const sc = document.getElementById('todo-scroll');
+    sc.scrollTop = sc.scrollHeight;
+    scheduleSave();
+  }
+});
+
+// ── 완료 아코디언 토글 ────────────────────────────────────
+
+function toggleDoneSection() {
+  _doneOpen = !_doneOpen;
+  const list   = document.getElementById('done-list');
+  const toggle = document.getElementById('done-toggle');
+  list.style.display = _doneOpen ? 'block' : 'none';
+  toggle.classList.toggle('open', _doneOpen);
+}
+
+// ── 창 최소화 / 복원 ──────────────────────────────────────
+
+async function toggleMinimize() {
+  _minimized = !_minimized;
+  document.getElementById('content').style.display = _minimized ? 'none' : 'flex';
+  document.getElementById('minimize-btn').textContent = _minimized ? '⬜' : '─';
+  document.getElementById('title-bar').classList.toggle('minimized', _minimized);
+  await window.popupAPI.resizeWindow(_minimized);
+}
+
+// ── 업무 완료 처리 ────────────────────────────────────────
+
+function handleComplete() {
+  if (_sessionId == null) return;
+  const allDone = _undone.length === 0 && _done.length > 0;
+  const msg = allDone
+    ? '모든 항목이 완료되었습니다. 업무를 완료 처리하시겠습니까?'
+    : `미완료 항목 ${_undone.length}개를 포함하여 모두 완료 처리합니다.\n계속하시겠습니까?`;
+  if (!confirm(msg)) return;
+  // 미완료 항목 전체를 완료로 강제 이동 (일괄완료)
+  while (_undone.length) _done.push(_undone.shift());
+  renderUndone();
+  renderDone();
+  const todos = _collectTodos();
+  window.popupAPI.markDone(_sessionId, todos);
+}
+
+// ── 저장 ──────────────────────────────────────────────────
+
+function scheduleSave() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(flushSave, 1500);
+}
+
+// main.js의 executeJavaScript('_collectTodos()')로 직접 호출됨 — 전역 함수 유지
+function _collectTodos() {
+  return [
+    ..._undone.map(t => ({ text: t.text, done: false })),
+    ..._done.map(t =>   ({ text: t.text, done: true  })),
+  ];
+}
+
+function flushSave() {
+  if (_sessionId == null) return;
+  window.popupAPI.saveContent(_sessionId, _collectTodos());
+}
+
+setInterval(flushSave, 30_000);
+</script>
+
+<!-- 완료 항목 우클릭 메뉴 -->
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-restore">↩ 진행 중으로 되돌리기</div>
+</div>
+</body>
+</html>

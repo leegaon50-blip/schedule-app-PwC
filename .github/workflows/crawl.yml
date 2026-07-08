@@ -1,0 +1,65 @@
+name: KICPA Crawler
+
+on:
+  schedule:
+    - cron: '0 * * * *'   # 매시 정각 UTC (= KST +9시간) — 24회/일
+    #
+    #   UTC  0 = KST 09:00 │ UTC  3 = KST 12:00 │ UTC  6 = KST 15:00
+    #
+    #   ★ 채용공고 알림 창: UTC 10~12시 = KST 19~21시 (3h, GitHub 지연 대응)
+    #     Python 내부 가드: 19 <= KST hour < 22
+    #     중복 방지: kicpa_jobs.json.lastJobNotifiedAt == today
+    #
+    #   ★ 기한 알림 창:    UTC 21~23시 = KST 06~08시 (3h, GitHub 지연 대응)
+    #     Python 내부 가드: 6 <= KST hour < 9
+    #     중복 방지: notify_state.json.last_notified == today
+    #
+    #   창이 넓어도 이중 발송 없음 — already_notified/last_notified 플래그가 차단.
+  workflow_dispatch:   # 수동 실행 버튼 (테스트용)
+
+permissions:
+  contents: write      # 상태 파일(kicpa_jobs.json, token.json) 커밋 권한
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 레포 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Python 세팅
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 3. 패키지 설치
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 4. 실행 전 상태 파일 확인 (디버깅용)
+      - name: Debug — show state files before run
+        run: |
+          echo "=== tasks.json (앞 30줄) ==="
+          head -30 tasks.json 2>/dev/null || echo "(없음)"
+          echo "=== notify_state.json ==="
+          cat notify_state.json 2>/dev/null || echo "(없음)"
+          echo "=== kicpa_jobs.json (pendingJobs 건수) ==="
+          python -c "import json; d=json.load(open('kicpa_jobs.json')); print(f'pendingJobs={len(d.get(\"pendingJobs\",[]))}건, lastJobNotifiedAt={d.get(\"lastJobNotifiedAt\",\"?\")}')" 2>/dev/null || echo "(kicpa_jobs.json 없음 또는 파싱 실패)"
+          echo "=== token.json 존재 여부 ==="
+          test -f token.json && echo "token.json 있음" || echo "token.json 없음 ❌"
+
+      # 5. 크롤러 실행
+      - name: Run KICPA crawler
+        run: python run_crawler.py
+
+      # 6. 변경된 상태 파일 자동 커밋
+      #    continue-on-error: true — auto_push.ps1 동시 push 충돌 시에도 job 성공으로 처리
+      - name: Commit updated state files
+        uses: stefanzweifel/git-auto-commit-action@v5
+        continue-on-error: true
+        with:
+          commit_message: 'chore: update crawler state [skip ci]'
+          file_pattern: 'kicpa_jobs.json token.json notify_state.json'

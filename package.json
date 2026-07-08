@@ -1,0 +1,36 @@
+{
+  "name": "일정 관리",
+  "version": "1.0.0",
+  "description": "일정 관리 데스크탑 앱",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "jest",
+    "postinstall": "electron-rebuild -f -w better-sqlite3"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "engines": {
+    "node": "20.x"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "electron": "^41.7.2",
+    "jest": "^30.4.2"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.10.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/*.test.js"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/"
+    ],
+    "verbose": true
+  }
+}
